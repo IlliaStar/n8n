@@ -30,6 +30,7 @@ if [ -f "$ENV_FILE" ]; then
   set -a; source "$ENV_FILE"; set +a
   sed -i "s|YOUR_SLACK_WEBHOOK_URL|${SLACK_WEBHOOK_URL}|g" "$TMP_DIR/daily-briefing.json"
   sed -i "s|YOUR_GOOGLE_SHEET_ID|${GOOGLE_SHEET_ID}|g" "$TMP_DIR/daily-briefing.json"
+  sed -i "s|YOUR_SLACK_WEBHOOK_URL|${SLACK_WEBHOOK_URL}|g" "$TMP_DIR/error-handler.json"
   echo "Loaded values from .env"
 else
   echo "Warning: .env not found — importing with placeholder values"

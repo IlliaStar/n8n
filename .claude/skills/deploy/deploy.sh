@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKFLOWS_DIR="$(cd "$(dirname "$0")/../../.." && pwd)/workflows"
+PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+WORKFLOWS_DIR="$PROJECT_DIR/workflows"
+ENV_FILE="$PROJECT_DIR/.env"
 
 # --- Stop all n8n processes ---
 echo "Stopping any running n8n processes..."
@@ -17,13 +19,29 @@ for i in $(seq 1 15); do
   sleep 1
 done
 
+# --- Load .env and substitute placeholders ---
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+cp "$WORKFLOWS_DIR/error-handler.json" "$TMP_DIR/error-handler.json"
+cp "$WORKFLOWS_DIR/daily-briefing.json" "$TMP_DIR/daily-briefing.json"
+
+if [ -f "$ENV_FILE" ]; then
+  set -a; source "$ENV_FILE"; set +a
+  sed -i "s|YOUR_SLACK_WEBHOOK_URL|${SLACK_WEBHOOK_URL}|g" "$TMP_DIR/daily-briefing.json"
+  sed -i "s|YOUR_GOOGLE_SHEET_ID|${GOOGLE_SHEET_ID}|g" "$TMP_DIR/daily-briefing.json"
+  echo "Loaded values from .env"
+else
+  echo "Warning: .env not found — importing with placeholder values"
+fi
+
 # --- Import workflows (order matters: error handler first) ---
 echo ""
 echo "Importing n8n workflows..."
 echo ""
 
-n8n import:workflow --input="$WORKFLOWS_DIR/error-handler.json"
-n8n import:workflow --input="$WORKFLOWS_DIR/daily-briefing.json"
+n8n import:workflow --input="$TMP_DIR/error-handler.json"
+n8n import:workflow --input="$TMP_DIR/daily-briefing.json"
 
 echo ""
 echo "Import complete."
@@ -55,8 +73,7 @@ fi
 
 echo ""
 echo "Remaining steps in the n8n UI:"
-echo "  1. Set SLACK_WEBHOOK_URL and GOOGLE_SHEET_ID in the Config node"
-echo "  2. Select Google credentials in both Log to Sheets nodes"
-echo "  3. Workflow Settings → Error Workflow → select 'Daily Briefing — Error Handler'"
-echo "  4. Activate the workflow"
+echo "  1. Select Google credentials in both Log to Sheets nodes"
+echo "  2. Workflow Settings → Error Workflow → select 'Daily Briefing — Error Handler'"
+echo "  3. Activate the workflow"
 echo ""

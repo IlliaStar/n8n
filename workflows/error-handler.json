@@ -1,0 +1,113 @@
+{
+  "name": "Daily Briefing \u2014 Error Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Error Handler\n\nLinked from the main **Daily Weather Briefing** workflow via **Settings \u2192 Error Workflow**.\n\nCaptures execution failures, extracts error context with a Set node, and posts a Slack alert.\n\n**Setup:** Replace `={{ $vars.SLACK_WEBHOOK_URL }}` in the `Notify Error via Slack` node.",
+        "height": 180,
+        "width": 460,
+        "color": 1
+      },
+      "id": "ee000000-0000-0000-0000-000000000000",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, 80]
+    },
+    {
+      "parameters": {},
+      "id": "ee000000-0000-0000-0000-000000000001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [200, 320]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "err-field-001",
+              "name": "error_message",
+              "value": "={{ $json.execution.error.message ?? 'Unknown error' }}",
+              "type": "string"
+            },
+            {
+              "id": "err-field-002",
+              "name": "workflow_name",
+              "value": "={{ $json.workflow.name }}",
+              "type": "string"
+            },
+            {
+              "id": "err-field-003",
+              "name": "execution_id",
+              "value": "={{ $json.execution.id }}",
+              "type": "string"
+            },
+            {
+              "id": "err-field-004",
+              "name": "last_node",
+              "value": "={{ $json.execution.lastNodeExecuted ?? 'Unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "err-field-005",
+              "name": "failed_at",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee000000-0000-0000-0000-000000000002",
+      "name": "Format Error Details",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=:x: *Workflow Failed: {{ $json.workflow_name }}*\n\n*Error:* {{ $json.error_message }}\n*Last node:* {{ $json.last_node }}\n*Execution ID:* {{ $json.execution_id }}\n*Time:* {{ $json.failed_at }}\n\nOpen n8n to inspect the execution."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee000000-0000-0000-0000-000000000003",
+      "name": "Notify Error via Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 320]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [{ "node": "Format Error Details", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Error Details": {
+      "main": [
+        [{ "node": "Notify Error via Slack", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "local"
+  },
+  "id": "daily-briefing-error-001",
+  "tags": []
+}

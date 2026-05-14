@@ -1,0 +1,243 @@
+{
+  "name": "Daily Weather Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Daily Weather Briefing \u2014 Setup\n\n**All config values live in the `Config` node** \u2014 edit them there.\n\n1. Open the `Config` node and set your values (city, coords, Slack webhook, Sheet ID)\n2. Select your Google credential in both `Log to Sheets` nodes\n3. Workflow **Settings** \u2192 **Error Workflow** \u2192 select `Daily Briefing \u2014 Error Handler`\n\n**No API key needed** \u2014 uses the free [Open-Meteo](https://open-meteo.com/) weather API\n\n**Alert fires when:** temp_max > 30 \u00b0C, temp_min < 0 \u00b0C, rain > 10 mm, or storm code \u2265 95",
+        "height": 240,
+        "width": 620,
+        "color": 4
+      },
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, 40]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000002",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 340]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            { "name": "CITY_NAME",        "stringValue": "Krakow" },
+            { "name": "CITY_LAT",         "stringValue": "50.0647" },
+            { "name": "CITY_LON",         "stringValue": "19.9450" },
+            { "name": "CITY_TIMEZONE",    "stringValue": "Europe/Warsaw" },
+            { "name": "SLACK_WEBHOOK_URL","stringValue": "YOUR_SLACK_WEBHOOK_URL" },
+            { "name": "GOOGLE_SHEET_ID",  "stringValue": "YOUR_GOOGLE_SHEET_ID" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000009",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [440, 340]
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "latitude",      "value": "={{ $('Config').item.json.CITY_LAT }}" },
+            { "name": "longitude",     "value": "={{ $('Config').item.json.CITY_LON }}" },
+            { "name": "current",       "value": "temperature_2m,weathercode,windspeed_10m" },
+            { "name": "daily",         "value": "temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode" },
+            { "name": "timezone",      "value": "={{ $('Config').item.json.CITY_TIMEZONE }}" },
+            { "name": "forecast_days", "value": "1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "Fetch Weather",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reshape Open-Meteo response and classify severity\nconst data     = $input.first().json;\nconst daily    = data.daily;\nconst current  = data.current;\nconst CITY_NAME = $('Config').item.json.CITY_NAME;\n\nif (!daily || !current) {\n  throw new Error('Unexpected API response — missing daily or current fields. Keys received: ' + JSON.stringify(Object.keys(data)));\n}\n\nconst WX = {\n  0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',\n  45:'Fog', 48:'Icing fog',\n  51:'Light drizzle', 53:'Moderate drizzle', 55:'Dense drizzle',\n  61:'Slight rain',  63:'Moderate rain',    65:'Heavy rain',\n  71:'Slight snow',  73:'Moderate snow',    75:'Heavy snow',  77:'Snow grains',\n  80:'Slight showers', 81:'Moderate showers', 82:'Violent showers',\n  95:'Thunderstorm', 96:'Thunderstorm + hail', 99:'Thunderstorm + heavy hail'\n};\n\nconst tempMax = daily.temperature_2m_max[0];\nconst tempMin = daily.temperature_2m_min[0];\nconst precip  = daily.precipitation_sum[0] ?? 0;\nconst wCode   = (daily.weathercode ?? daily.weather_code)[0];\nconst curTemp = current.temperature_2m;\nconst wind    = current.windspeed_10m;\n\nconst reasons = [\n  tempMax > 30  ? `High temp ${tempMax}\u00b0C`  : null,\n  tempMin < 0   ? `Low temp ${tempMin}\u00b0C`   : null,\n  precip  > 10  ? `Heavy rain ${precip}mm`        : null,\n  wCode   >= 95 ? `Storm: ${WX[wCode]}`           : null\n].filter(Boolean);\n\nconst condition = WX[wCode] ?? `Code ${wCode}`;\nconst date      = new Date().toISOString().split('T')[0];\n\nreturn [{ json: {\n  date,\n  city:              CITY_NAME,\n  current_temp_c:    curTemp,\n  temp_max_c:        tempMax,\n  temp_min_c:        tempMin,\n  precipitation_mm:  precip,\n  wind_speed_kmh:    wind,\n  weather_condition: condition,\n  weather_code:      wCode,\n  is_critical:       reasons.length > 0,\n  alert_reason:      reasons.length > 0 ? reasons.join(', ') : 'None',\n  summary:           `${date} | ${CITY_NAME} | ${condition} | ${tempMin}\u00b0C\u2013${tempMax}\u00b0C | Rain: ${precip}mm | Wind: ${wind}\u00a0km/h`\n}}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000004",
+      "name": "Transform Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 340]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-is-critical-001",
+              "leftValue": "={{ $json.is_critical }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true
+      },
+      "id": "00000000-0000-0000-0000-000000000005",
+      "name": "Is Critical?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1160, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=:rotating_light: *Weather Alert \u2014 {{ $json.date }}*\n\n{{ $json.summary }}\n\n*Reason:* {{ $json.alert_reason }}\n\n_Sent by Daily Briefing Workflow_"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000006",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 180]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').item.json.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "valueInputMode": "USER_ENTERED"
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000007",
+      "name": "Log to Sheets (Alert)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [1640, 180]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').item.json.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "valueInputMode": "USER_ENTERED"
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000008",
+      "name": "Log to Sheets (Normal)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [1400, 500]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [{ "node": "Config", "type": "main", "index": 0 }]
+      ]
+    },
+    "Config": {
+      "main": [
+        [{ "node": "Fetch Weather", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Weather": {
+      "main": [
+        [{ "node": "Transform Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transform Data": {
+      "main": [
+        [{ "node": "Is Critical?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Critical?": {
+      "main": [
+        [{ "node": "Send Slack Alert",       "type": "main", "index": 0 }],
+        [{ "node": "Log to Sheets (Normal)",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Slack Alert": {
+      "main": [
+        [{ "node": "Log to Sheets (Alert)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "local"
+  },
+  "id": "daily-briefing-main-001",
+  "tags": []
+}

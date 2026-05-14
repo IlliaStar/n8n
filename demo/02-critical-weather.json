@@ -1,0 +1,18 @@
+{
+  "latitude": 50.0647,
+  "longitude": 19.945,
+  "timezone": "Europe/Warsaw",
+  "current": {
+    "time": "2025-05-14T08:00",
+    "temperature_2m": 33.1,
+    "weathercode": 99,
+    "windspeed_10m": 72.0
+  },
+  "daily": {
+    "time": ["2025-05-14"],
+    "temperature_2m_max": [35.8],
+    "temperature_2m_min": [-2.1],
+    "precipitation_sum": [42.5],
+    "weathercode": [99]
+  }
+}

@@ -158,35 +158,6 @@
           "valueInputMode": "USER_ENTERED"
         }
       },
-      "id": "00000000-0000-0000-0000-000000000007",
-      "name": "Log to Sheets (Alert)",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.4,
-      "position": [1640, 180]
-    },
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "={{ $('Config').item.json.GOOGLE_SHEET_ID }}",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Log",
-          "mode": "name"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": {},
-          "matchingColumns": [],
-          "schema": []
-        },
-        "options": {
-          "valueInputMode": "USER_ENTERED"
-        }
-      },
       "id": "00000000-0000-0000-0000-000000000008",
       "name": "Log to Sheets (Normal)",
       "type": "n8n-nodes-base.googleSheets",
@@ -222,9 +193,7 @@
       ]
     },
     "Send Slack Alert": {
-      "main": [
-        [{ "node": "Log to Sheets (Alert)", "type": "main", "index": 0 }]
-      ]
+      "main": [[]]
     }
   },
   "active": false,

@@ -25,7 +25,7 @@ daily-briefing.json
     → Fetch Weather (HTTP → Open-Meteo, free, no API key)
     → Transform Data (Code node — reshapes response, computes is_critical)
     → Is Critical? (IF node)
-        true  → Send Slack Alert → Log to Sheets (Alert)
+        true  → Send Slack Alert
         false → Log to Sheets (Normal)
 
 error-handler.json
